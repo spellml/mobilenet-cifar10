@@ -11,6 +11,7 @@ Initial MobileNet model. Trained on CIFAR10.
 import torch.nn as nn
 import math
 import torch
+import os
 
 
 def conv_bn(inp, oup, stride):
@@ -201,6 +202,8 @@ def train(model):
             f'avg loss: {np.mean(losses)}; median loss: {np.min(losses)}'
         )
         
+        if not os.path.exists("/spell/checkpoints/"):
+            os.mkdir("/spell/checkpoints")
         if epoch % 5 == 0:
             torch.save(model.state_dict(), "/spell/checkpoints/model_{epoch}.pth")
 
