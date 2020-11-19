@@ -205,6 +205,6 @@ def train(model):
         if not os.path.exists("/spell/checkpoints/"):
             os.mkdir("/spell/checkpoints")
         if epoch % 5 == 0:
-            torch.save(model.state_dict(), "/spell/checkpoints/model_{epoch}.pth")
+            torch.save(model.state_dict(), f"/spell/checkpoints/model_{epoch}.pth")
 
 train(model)
