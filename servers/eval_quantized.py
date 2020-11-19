@@ -214,7 +214,9 @@ def train(model):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters())
     start_time = time.time()
-    NUM_EPOCHS = 10
+    
+    # XXX: temporarily setting to 1 to expedite testing!
+    NUM_EPOCHS = 1
     for epoch in range(1, NUM_EPOCHS + 1):
         losses = []
 
