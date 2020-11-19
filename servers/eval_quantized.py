@@ -235,13 +235,11 @@ def train(model):
                 )
 
             losses.append(curr_loss)
-            break
 
         print(
             f'Finished epoch {epoch}. '
             f'avg loss: {np.mean(losses)}; median loss: {np.min(losses)}'
         )
-        break
     print(f"Training done in {str(time.time() - start_time)} seconds.")
 
 
