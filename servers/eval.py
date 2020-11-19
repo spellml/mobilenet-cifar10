@@ -176,13 +176,15 @@ def eval_fn(model):
         )
     else:
         model.load_state_dict(torch.load(f"{checkpoints_dir}/model_10.pth"))        
+
+    model.to(device)
     model.eval()
 
     print(f"Evaluating the model...")
     start_time = time.time()
     for i, (X_batch, y_cls) in enumerate(dataloader):
         y = y_cls
-        y_pred = model(X_batch)
+        y_pred = model(X_batch.to(device))
     print(f"Evaluation done in {str(time.time() - start_time)} seconds.")
 
 if __name__ == "__main__":
