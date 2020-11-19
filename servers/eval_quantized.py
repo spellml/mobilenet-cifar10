@@ -180,9 +180,6 @@ dataset = torchvision.datasets.CIFAR10("/mnt/cifar10/", train=True, transform=tr
 dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
 def prepare_model(model):
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters())
-
     model.qconfig = torch.quantization.get_default_qat_qconfig('fbgemm')
     model = torch.quantization.fuse_modules(
         model,
@@ -207,6 +204,8 @@ def prepare_model(model):
 
 def train(model):
     print(f"Training the model...")
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters())
     start_time = time.time()
     NUM_EPOCHS = 10
     for epoch in range(1, NUM_EPOCHS + 1):
