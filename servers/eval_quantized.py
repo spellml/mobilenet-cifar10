@@ -27,8 +27,8 @@ def conv_bn(inp, oup, stride):
         ('q', torch.quantization.QuantStub()),
         ('conv2d', nn.Conv2d(inp, oup, 3, stride, 1, bias=False)),
         ('batchnorm2d', nn.BatchNorm2d(oup)),
-        ('dq', torch.quantization.DeQuantStub()),
         ('relu6', nn.ReLU6(inplace=True)),
+        ('dq', torch.quantization.DeQuantStub())        
     ]))
 
 def conv_1x1_bn(inp, oup):
@@ -36,8 +36,8 @@ def conv_1x1_bn(inp, oup):
         ('q', torch.quantization.QuantStub()),
         ('conv2d', nn.Conv2d(inp, oup, 1, 1, 0, bias=False)),
         ('batchnorm2d', nn.BatchNorm2d(oup)),
-        ('dq', torch.quantization.DeQuantStub()),
         ('relu6', nn.ReLU6(inplace=True)),
+        ('dq', torch.quantization.DeQuantStub())
     ]))
 
 def make_divisible(x, divisible_by=8):
@@ -56,35 +56,31 @@ class InvertedResidual(nn.Module):
 
         if expand_ratio == 1:
             self.conv = nn.Sequential(OrderedDict([
-                ('q_1', torch.quantization.QuantStub()),
+                ('q', torch.quantization.QuantStub()),
                 # dw
                 ('conv2d_1', nn.Conv2d(hidden_dim, hidden_dim, 3, stride, 1, groups=hidden_dim, bias=False)),
                 ('bnorm_2', nn.BatchNorm2d(hidden_dim)),
-                ('dq_1', torch.quantization.DeQuantStub()),
                 ('relu6_3', nn.ReLU6(inplace=True)),
                 # pw-linear
-                ('q_2', torch.quantization.QuantStub()),
                 ('conv2d_4', nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False)),
                 ('bnorm_5', nn.BatchNorm2d(oup)),
-                ('dq_2', torch.quantization.DeQuantStub())
+                ('dq', torch.quantization.DeQuantStub())
             ]))
         else:
             self.conv = nn.Sequential(OrderedDict([
-                ('q_1', torch.quantization.QuantStub()),
+                ('q', torch.quantization.QuantStub()),
                 # pw
                 ('conv2d_1', nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False)),
                 ('bnorm_2', nn.BatchNorm2d(hidden_dim)),
-                ('dq_1', torch.quantization.DeQuantStub()),
                 ('relu6_3', nn.ReLU6(inplace=True)),
                 # dw
-                ('q_2', torch.quantization.QuantStub()),
                 ('conv2d_4', nn.Conv2d(hidden_dim, hidden_dim, 3, stride, 1, groups=hidden_dim, bias=False)),
                 ('bnorm_5', nn.BatchNorm2d(hidden_dim)),
                 ('relu6_6', nn.ReLU6(inplace=True)),
                 # pw-linear
                 ('conv2d_7', nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False)),
                 ('bnorm_8', nn.BatchNorm2d(oup)),
-                ('dq_2', torch.quantization.DeQuantStub())
+                ('dq', torch.quantization.DeQuantStub())
             ]))
 
     def forward(self, x):
@@ -182,7 +178,7 @@ transform = torchvision.transforms.Compose([
     torchvision.transforms.RandomPerspective(),
     torchvision.transforms.ToTensor()
 ])
-dataset = torchvision.datasets.CIFAR10("cifar10/", train=True, transform=transform, download=True)
+dataset = torchvision.datasets.CIFAR10("/mnt/cifar10/", train=True, transform=transform, download=True)
 dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
 def prepare_model(model):
@@ -215,8 +211,7 @@ def train(model):
     optimizer = optim.Adam(model.parameters())
     start_time = time.time()
     
-    # XXX: temporarily setting to 1 to expedite testing!
-    NUM_EPOCHS = 1
+    NUM_EPOCHS = 10
     for epoch in range(1, NUM_EPOCHS + 1):
         losses = []
 
@@ -240,11 +235,13 @@ def train(model):
                 )
 
             losses.append(curr_loss)
+            break
 
         print(
             f'Finished epoch {epoch}. '
             f'avg loss: {np.mean(losses)}; median loss: {np.min(losses)}'
         )
+        break
     print(f"Training done in {str(time.time() - start_time)} seconds.")
 
 
