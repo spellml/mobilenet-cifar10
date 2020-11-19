@@ -159,7 +159,7 @@ class MobileNetV2(nn.Module):
 
 
 def get_model():
-    model = MobileNetV2(width_mult=1, n_class=10, input_size=32)
+    return MobileNetV2(width_mult=1, n_class=10, input_size=32)
 
 
 ############
@@ -247,7 +247,7 @@ def eval_fn(model):
     start_time = time.time()
     model = torch.quantization.convert(model)
     print(f"Quantization done in {str(time.time() - start_time)} seconds.")
-
+    
     print(f"Evaluating the model...")
     start_time = time.time()
     for i, (X_batch, y_cls) in enumerate(dataloader):
