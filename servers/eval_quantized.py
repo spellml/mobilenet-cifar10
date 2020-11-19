@@ -27,8 +27,8 @@ def conv_bn(inp, oup, stride):
         ('q', torch.quantization.QuantStub()),
         ('conv2d', nn.Conv2d(inp, oup, 3, stride, 1, bias=False)),
         ('batchnorm2d', nn.BatchNorm2d(oup)),
+        ('dq', torch.quantization.DeQuantStub()),
         ('relu6', nn.ReLU6(inplace=True)),
-        ('dq', torch.quantization.DeQuantStub())
     ]))
 
 def conv_1x1_bn(inp, oup):
@@ -36,8 +36,8 @@ def conv_1x1_bn(inp, oup):
         ('q', torch.quantization.QuantStub()),
         ('conv2d', nn.Conv2d(inp, oup, 1, 1, 0, bias=False)),
         ('batchnorm2d', nn.BatchNorm2d(oup)),
+        ('dq', torch.quantization.DeQuantStub()),
         ('relu6', nn.ReLU6(inplace=True)),
-        ('dq', torch.quantization.DeQuantStub())
     ]))
 
 def make_divisible(x, divisible_by=8):
@@ -56,31 +56,35 @@ class InvertedResidual(nn.Module):
 
         if expand_ratio == 1:
             self.conv = nn.Sequential(OrderedDict([
-                ('q', torch.quantization.QuantStub()),
+                ('q_1', torch.quantization.QuantStub()),
                 # dw
                 ('conv2d_1', nn.Conv2d(hidden_dim, hidden_dim, 3, stride, 1, groups=hidden_dim, bias=False)),
                 ('bnorm_2', nn.BatchNorm2d(hidden_dim)),
+                ('dq_1', torch.quantization.DeQuantStub()),
                 ('relu6_3', nn.ReLU6(inplace=True)),
                 # pw-linear
+                ('q_2', torch.quantization.QuantStub()),
                 ('conv2d_4', nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False)),
                 ('bnorm_5', nn.BatchNorm2d(oup)),
-                ('dq', torch.quantization.DeQuantStub())
+                ('dq_2', torch.quantization.DeQuantStub())
             ]))
         else:
             self.conv = nn.Sequential(OrderedDict([
-                ('q', torch.quantization.QuantStub()),
+                ('q_1', torch.quantization.QuantStub()),
                 # pw
                 ('conv2d_1', nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False)),
                 ('bnorm_2', nn.BatchNorm2d(hidden_dim)),
+                ('dq_1', torch.quantization.DeQuantStub()),
                 ('relu6_3', nn.ReLU6(inplace=True)),
                 # dw
+                ('q_2', torch.quantization.QuantStub()),
                 ('conv2d_4', nn.Conv2d(hidden_dim, hidden_dim, 3, stride, 1, groups=hidden_dim, bias=False)),
                 ('bnorm_5', nn.BatchNorm2d(hidden_dim)),
                 ('relu6_6', nn.ReLU6(inplace=True)),
                 # pw-linear
                 ('conv2d_7', nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False)),
                 ('bnorm_8', nn.BatchNorm2d(oup)),
-                ('dq', torch.quantization.DeQuantStub())
+                ('dq_2', torch.quantization.DeQuantStub())
             ]))
 
     def forward(self, x):
@@ -132,7 +136,9 @@ class MobileNetV2(nn.Module):
         self.features = nn.Sequential(OrderedDict(list(zip(submodule_names, self.features))))
 
         # building classifier
+        # NOTE(aleksey): setting qconfig to None disables quantization for this layer
         self.classifier = nn.Linear(self.last_channel, n_class)
+        self.classifier.qconfig = None
 
         self._initialize_weights()
 
@@ -176,10 +182,11 @@ transform = torchvision.transforms.Compose([
     torchvision.transforms.RandomPerspective(),
     torchvision.transforms.ToTensor()
 ])
-dataset = torchvision.datasets.CIFAR10("/mnt/cifar10/", train=True, transform=transform, download=True)
+dataset = torchvision.datasets.CIFAR10("cifar10/", train=True, transform=transform, download=True)
 dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
 def prepare_model(model):
+    model.train()
     model.qconfig = torch.quantization.get_default_qat_qconfig('fbgemm')
     model = torch.quantization.fuse_modules(
         model,
@@ -242,7 +249,7 @@ def train(model):
 def eval_fn(model):
     model.eval()
     
-    print(f"Quantizing the model (post-training)...")
+    print(f"Converting the model (post-training)...")
     start_time = time.time()
     model = torch.quantization.convert(model)
     print(f"Quantization done in {str(time.time() - start_time)} seconds.")
@@ -256,6 +263,6 @@ def eval_fn(model):
 
 if __name__ == "__main__":
     model = get_model()
-    prepare_model(model)
+    model = prepare_model(model)
     train(model)
     eval_fn(model)
