@@ -165,6 +165,7 @@ class MobileNetV2(nn.Module):
 def get_model():
     model = MobileNetV2(width_mult=1, n_class=10, input_size=32)
     model.cuda()
+    return model
 
 
 ############
