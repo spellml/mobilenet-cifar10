@@ -3,6 +3,8 @@ MobileNet model with quantization-aware training (QAT) enabled. Trained on CIFAR
 
 This file batches training and evaluation into the same script. Since QAT requires careful
 management of the training loop, it's easiest do both in the same run.
+
+This script trains on GPU, then quantizes on CPU. This is a test to see if this is possible.
 """
 # Forked from https://github.com/tonylins/pytorch-mobilenet-v2/blob/master/MobileNetV2.py
 
@@ -161,7 +163,9 @@ class MobileNetV2(nn.Module):
 
 
 def get_model():
-    return MobileNetV2(width_mult=1, n_class=10, input_size=32)
+    model = MobileNetV2(width_mult=1, n_class=10, input_size=32)
+    model.cuda()
+    return model
 
 
 ############
@@ -220,8 +224,8 @@ def train(model):
 
             y = y_cls
             X_batch = X_batch
-            # y = y_cls.cuda()
-            # X_batch = X_batch.cuda()
+            y = y_cls.cuda()
+            X_batch = X_batch.cuda()
 
             y_pred = model(X_batch)
             loss = criterion(y_pred, y)
@@ -244,6 +248,7 @@ def train(model):
 
 
 def eval_fn(model):
+    model.to(torch.device("cpu"))
     model.eval()
     
     print(f"Converting the model (post-training)...")

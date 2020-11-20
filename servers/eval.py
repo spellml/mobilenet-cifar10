@@ -1,8 +1,12 @@
 """
-Initial MobileNet model. Trained on CIFAR10.
-"""
+MobileNet model with quantization-aware training (QAT) enabled. Trained on CIFAR10.
 
+This file batches training and evaluation into the same script. Since QAT requires careful
+management of the training loop, it's easiest do both in the same run.
+"""
 # Forked from https://github.com/tonylins/pytorch-mobilenet-v2/blob/master/MobileNetV2.py
+
+# TODO: can we train on CUDA, then quantize on CPU? This bears investigating.
 
 ####################
 # MODEL DEFINITION #
@@ -12,7 +16,7 @@ import torch.nn as nn
 import math
 import torch
 import os
-
+import time
 
 def conv_bn(inp, oup, stride):
     return nn.Sequential(
@@ -136,75 +140,54 @@ class MobileNetV2(nn.Module):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
+def get_model():
+    return MobileNetV2(width_mult=1, n_class=10, input_size=32)
 
-model = MobileNetV2(width_mult=1, n_class=10, input_size=32)
 
+##############
+# EVALUATION #
+##############
 
-############
-# TRAINING #
-############
+def get_dataloader():
+    import torchvision
+    from torch.utils.data import DataLoader
+    transform = torchvision.transforms.Compose([
+        torchvision.transforms.RandomHorizontalFlip(),
+        torchvision.transforms.RandomPerspective(),
+        torchvision.transforms.ToTensor()
+    ])
+    dataset = torchvision.datasets.CIFAR10("/mnt/cifar10/", train=True, transform=transform, download=True)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    return dataloader
 
-import torchvision
-from torch.utils.data import DataLoader
-transform = torchvision.transforms.Compose([
-    torchvision.transforms.RandomHorizontalFlip(),
-    torchvision.transforms.RandomPerspective(),
-    torchvision.transforms.ToTensor()
-])
-dataset = torchvision.datasets.CIFAR10("/mnt/cifar10/", train=True, transform=transform, download=True)
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+def eval_fn(model):
+    import numpy as np
+    if torch.cuda.device_count() >= 1:
+        device = torch.device('cuda')
+        is_cpu = False
+    else:
+        device = torch.device('cpu')
+        is_cpu = True
 
-from torch import optim
-import numpy as np
-
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters())
-
-if torch.cuda.device_count() >= 1:
-    device = torch.device('cuda')
-    is_cpu = False
-else:
-    device = torch.device('cpu')
-    is_cpu = True
-
-def train(model):
-    model.to(device)
-    
-    NUM_EPOCHS = 10
-    for epoch in range(1, NUM_EPOCHS + 1):
-        losses = []
-
-        for i, (X_batch, y_cls) in enumerate(dataloader):
-            optimizer.zero_grad()
-
-            if is_cpu:
-                y = y_cls
-                X_batch = X_batch
-            else:
-                y = y_cls.cuda()
-                X_batch = X_batch.cuda()
-
-            y_pred = model(X_batch)
-            loss = criterion(y_pred, y)
-            loss.backward()
-            optimizer.step()
-
-            curr_loss = loss.item()
-            if i % 200 == 0:
-                print(
-                    f'Finished epoch {epoch}/{NUM_EPOCHS}, batch {i}. Loss: {curr_loss:.3f}.'
-                )
-
-            losses.append(curr_loss)
-
-        print(
-            f'Finished epoch {epoch}. '
-            f'avg loss: {np.mean(losses)}; median loss: {np.min(losses)}'
+    checkpoints_dir = '/spell/checkpoints'
+    if is_cpu:
+        model.load_state_dict(
+            torch.load(f"{checkpoints_dir}/model_10.pth", map_location=torch.device('cpu'))
         )
-        
-        if not os.path.exists("/spell/checkpoints/"):
-            os.mkdir("/spell/checkpoints")
-        if epoch % 5 == 0:
-            torch.save(model.state_dict(), f"/spell/checkpoints/model_{epoch}.pth")
+    else:
+        model.load_state_dict(torch.load(f"{checkpoints_dir}/model_10.pth"))        
 
-train(model)
+    model.to(device)
+    model.eval()
+
+    print(f"Evaluating the model...")
+    start_time = time.time()
+    for i, (X_batch, y_cls) in enumerate(dataloader):
+        y = y_cls
+        y_pred = model(X_batch.to(device))
+    print(f"Evaluation done in {str(time.time() - start_time)} seconds.")
+
+if __name__ == "__main__":
+    dataloader = get_dataloader()
+    model = get_model()
+    eval_fn(model)
