@@ -6,8 +6,6 @@ management of the training loop, it's easiest do both in the same run.
 """
 # Forked from https://github.com/tonylins/pytorch-mobilenet-v2/blob/master/MobileNetV2.py
 
-# TODO: can we train on CUDA, then quantize on CPU? This bears investigating.
-
 ####################
 # MODEL DEFINITION #
 ####################
@@ -257,6 +255,9 @@ def eval_fn(model):
         y = y_cls
         y_pred = model(X_batch)
     print(f"Evaluation done in {str(time.time() - start_time)} seconds.")
+
+    print(f"Writing quantized model to disk.")
+    torch.save(model.state_dict(), f'/spell/model_quantized.pth')
 
 if __name__ == "__main__":
     model = get_model()
